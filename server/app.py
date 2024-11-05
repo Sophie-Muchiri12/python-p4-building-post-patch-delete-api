@@ -1,90 +1,123 @@
+# server/app.py
+
 #!/usr/bin/env python3
 
 from flask import Flask, request, make_response
-from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_restful import Api, Resource
 
-from models import db, User, Review, Game
+from models import db, Newsletter
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///newsletters.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.json.compact = False
 
 migrate = Migrate(app, db)
-
 db.init_app(app)
 
-@app.route('/')
-def index():
-    return "Index for Game/Review/User API"
+api = Api(app)
 
-@app.route('/games')
-def games():
+class Index(Resource):
 
-    games = []
-    for game in Game.query.all():
-        game_dict = {
-            "title": game.title,
-            "genre": game.genre,
-            "platform": game.platform,
-            "price": game.price,
+    def get(self):
+
+        response_dict = {
+            "index": "Welcome to the Newsletter RESTful API",
         }
-        games.append(game_dict)
 
-    response = make_response(
-        games,
-        200
-    )
+        response = make_response(
+            response_dict,
+            200,
+        )
 
-    return response
+        return response
 
-@app.route('/games/<int:id>')
-def game_by_id(id):
-    game = Game.query.filter(Game.id == id).first()
-    
-    game_dict = game.to_dict()
+api.add_resource(Index, '/')
 
-    response = make_response(
-        game_dict,
-        200
-    )
+class Newsletters(Resource):
 
-    return response
+    def get(self):
 
-@app.route('/reviews')
-def reviews():
+        response_dict_list = [n.to_dict() for n in Newsletter.query.all()]
 
-    reviews = []
-    for review in Review.query.all():
-        review_dict = review.to_dict()
-        reviews.append(review_dict)
+        response = make_response(
+            response_dict_list,
+            200,
+        )
 
-    response = make_response(
-        reviews,
-        200
-    )
+        return response
 
-    return response
+    def post(self):
 
-@app.route('/users')
-def users():
+        new_record = Newsletter(
+            title=request.form['title'],
+            body=request.form['body'],
+        )
 
-    users = []
-    for user in User.query.all():
-        user_dict = user.to_dict()
-        users.append(user_dict)
+        db.session.add(new_record)
+        db.session.commit()
 
-    response = make_response(
-        users,
-        200
-    )
+        response_dict = new_record.to_dict()
 
-    return response
+        response = make_response(
+            response_dict,
+            201,
+        )
+
+        return response
+
+api.add_resource(Newsletters, '/newsletters')
+
+class NewsletterByID(Resource):
+
+    def get(self, id):
+
+        response_dict = Newsletter.query.filter_by(id=id).first().to_dict()
+
+        response = make_response(
+            response_dict,
+            200,
+        )
+
+        return response
+
+    def patch(self, id):
+
+        record = Newsletter.query.filter_by(id=id).first()
+        for attr in request.form:
+            setattr(record, attr, request.form[attr])
+
+        db.session.add(record)
+        db.session.commit()
+
+        response_dict = record.to_dict()
+
+        response = make_response(
+            response_dict,
+            200
+        )
+
+        return response
+
+    def delete(self, id):
+
+        record = Newsletter.query.filter_by(id=id).first()
+
+        db.session.delete(record)
+        db.session.commit()
+
+        response_dict = {"message": "record successfully deleted"}
+
+        response = make_response(
+            response_dict,
+            200
+        )
+
+        return response
+
+api.add_resource(NewsletterByID, '/newsletters/<int:id>')
+
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
-
-
-
-## patch and delete
